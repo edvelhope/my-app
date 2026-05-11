@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      UserRole @default(ADMIN)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relazioni
+  socialAccounts SocialAccount[]
+  subscription   Subscription?
+  teamMembers    TeamMember[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model SocialAccount {
+  id            String    @id @default(uuid())
+  platform      String    // "instagram"
+  accountId     String    @map("account_id") // Instagram Business ID
+  pageId        String?   @map("page_id")    // Facebook Page ID
+  accountName   String?   @map("account_name")
+  accountHandle String?   @map("account_handle") // @username
+
+  // Token (cifrato)
+  accessToken   String    @map("access_token")
+  tokenExpiresAt DateTime? @map("token_expires_at")
+
+  // Stato
+  isActive      Boolean   @default(true) @map("is_active")
+  lastSyncedAt  DateTime? @map("last_synced_at")
+
+  // Relazioni
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("social_accounts")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  status    SubscriptionStatus @default(TRIAL)
+  trialEndsAt DateTime?        @map("trial_ends_at")
+  currentPeriodStart DateTime? @map("current_period_start")
+  currentPeriodEnd   DateTime? @map("current_period_end")
+  stripeCustomerId   String?   @map("stripe_customer_id")
+  stripeSubscriptionId String? @map("stripe_subscription_id")
+  canceledAt DateTime?         @map("canceled_at")
+
+  // Relazioni
+  userId    String    @unique @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+model TeamMember {
+  id     String   @id @default(uuid())
+  email  String
+  name   String?
+  role   UserRole @default(VIEWER)
+  token  String   @unique // Token per accettare invito
+  tokenExpiresAt DateTime @map("token_expires_at")
+  acceptedAt     DateTime? @map("accepted_at")
+
+  // Relazioni
+  invitedById String @map("invited_by_id")
+  invitedBy   User   @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("team_members")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // Es. "user.login", "account.connected", "subscription.canceled"
+  entity    String?  // Entità coinvolta (es. "SocialAccount")
+  entityId  String?  @map("entity_id")
+  metadata  Json?    // Dati aggiuntivi (es. { ip: "...", userAgent: "..." })
+
+  // Relazioni
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+enum UserRole {
+  ADMIN
+  VIEWER
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}

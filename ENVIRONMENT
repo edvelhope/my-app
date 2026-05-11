@@ -1,0 +1,145 @@
+🐳 Docker nel Nostro Progetto
+Cosa è Docker?
+Docker è come un "container" che imballa un'applicazione con tutto ciò che le serve (sistema operativo, librerie, configurazioni). Nel nostro caso, usiamo Docker per far girare PostgreSQL e Redis sul tuo computer.
+Perché non installarli direttamente?
+- PostgreSQL richiede configurazione utente, permessi, porte
+- Redis richiede compilazione e setup
+- Con Docker: un comando e tutto funziona, senza sporcare il tuo sistema
+---
+Struttura del Nostro Ambiente
+┌─────────────────────────────────────────┐
+│              TUO COMPUTER               │
+│  ┌─────────────────────────────────┐    │
+│  │     Docker Engine (in background)│   │
+│  │  ┌─────────────────────────┐    │    │
+│  │  │  Container: hubso-postgres │   │    │
+│  │  │  PostgreSQL 16             │   │    │
+│  │  │  Porta: 5432               │   │    │
+│  │  │  Password: hubso_dev_pw    │   │    │
+│  │  └─────────────────────────┘    │    │
+│  │  ┌─────────────────────────┐    │    │
+│  │  │  Container: hubso-redis    │   │    │
+│  │  │  Redis 7                   │   │    │
+│  │  │  Porta: 6379               │   │    │
+│  │  └─────────────────────────┘    │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  Backend NestJS (Node.js 22)     │    │
+│  │  Porta: 3000                     │    │
+│  │  → Parla con Postgres:5432      │    │
+│  │  → Parla con Redis:6379         │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  Frontend Angular (Node.js 22)   │    │
+│  │  Porta: 4200                     │    │
+│  │  → Parla con Backend:3000       │    │
+│  └─────────────────────────────────┘    │
+└─────────────────────────────────────────┘
+---
+Comandi Essenziali
+1. Avviare Docker (Database)
+# Vai nella root del progetto
+cd /home/edoardo/Documenti/my-app
+# Avvia PostgreSQL + Redis in background (-d = detached)
+docker compose up -d
+# Verifica che siano in esecuzione
+docker ps
+# Output atteso:
+# CONTAINER ID   IMAGE              STATUS
+# 165acc...      postgres:16        Up 3 minutes (healthy)
+# 5ea58c...      redis:7            Up 3 minutes (healthy)
+2. Avviare il Backend (NestJS)
+# Nuovo terminale
+cd /home/edoardo/Documenti/my-app/hubso-api
+# Installa dipendenze (prima volta o dopo cambiamenti)
+npm install
+# Applica eventuali nuove migrazioni Prisma
+npx prisma migrate deploy
+# Avvia in modalità sviluppo (hot-reload)
+npm run start:dev
+# Output atteso:
+# [Nest] 12345  -  2026-05-10 14:00:00   LOG  Nest application successfully started
+# Server listening on http://localhost:3000
+3. Avviare il Frontend (Angular)
+# Nuovo terminale
+cd /home/edoardo/Documenti/my-app/hubso-web
+# Installa dipendenze (prima volta)
+npm install
+# Avvia Angular dev server
+npm start
+# Output atteso:
+# Application bundle generation complete. [2.345 seconds]
+# Watch mode enabled. Waiting for file changes...
+# ➜  Local:   http://localhost:4200/
+---
+Flusso di Lavoro Quotidiano
+Quando inizi a lavorare:
+# 1. Accendi i database (se non sono già attivi)
+docker compose up -d
+# 2. Avvia backend (terminale 1)
+cd hubso-api && npm run start:dev
+# 3. Avvia frontend (terminale 2)
+cd hubso-web && npm start
+Quando finisci di lavorare:
+# Spegni i database (opzionale, ma salva RAM)
+docker compose down
+# Oppure lasciali accesi se torni tra poco
+---
+Vantaggi di Docker nel Nostro Caso
+Vantaggio
+Nessuna installazione
+Configurazione identica
+Dati persistenti
+Isolamento
+CI/CD identica
+Facile reset
+---
+File di Configurazione
+docker-compose.yml
+services:
+  postgres:
+    image: postgres:16-alpine   # Versione esatta
+    environment:
+      POSTGRES_USER: hubso
+      POSTGRES_PASSWORD: hubso_dev_password
+      POSTGRES_DB: hubso
+    ports:
+      - "5432:5432"             # Accessibile da localhost:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Dati persistenti
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"             # Accessibile da localhost:6379
+    volumes:
+      - redis_data:/data        # Dati persistenti
+volumes:
+  postgres_data:    # Volume Docker che sopravvive ai riavvii
+  redis_data:
+Connessione dal Backend
+// hubso-api/.env
+DATABASE_URL="postgresql://hubso:hubso_dev_password@localhost:5432/hubso?schema=public"
+// hubso-api/prisma/prisma.service.ts
+// Prisma usa DATABASE_URL per connettersi al container PostgreSQL
+---
+Troubleshooting Comune
+Problema: "Porta già in uso"
+# Se hai già PostgreSQL installato sul sistema
+# Cambia porta nel docker-compose.yml:
+ports:
+  - "5433:5432"  # Usa 5433 invece di 5432
+# E aggiorna DATABASE_URL di conseguenza
+Problema: "Container non parte"
+# Controlla i log
+docker compose logs postgres
+# Reset completo (perde tutti i dati!)
+docker compose down -v
+docker compose up -d
+Problema: "Prisma non trova il database"
+# Assicurati che Docker sia attivo
+docker ps
+# Verifica che Prisma possa connettersi
+cd hubso-api
+npx prisma db pull

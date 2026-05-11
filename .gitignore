@@ -7,9 +7,24 @@
 /bazel-out
 
 # Node
+# Root node_modules (legacy, now in subprojects)
 /node_modules
+
+# Subproject node_modules
+hubso-web/node_modules
+hubso-api/node_modules
+
+# Subproject build output
+hubso-web/dist
+hubso-api/dist
+
 npm-debug.log
 yarn-error.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
 
 # IDEs and editors
 .idea/
@@ -47,3 +62,5 @@ Thumbs.db
 _bmad
 _bmad-output
 .agents
+
+/generated/prisma
